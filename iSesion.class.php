@@ -262,9 +262,9 @@ class iSesion {
   }
 
   /**
-   * Checks if the user CAN login. If 'true', the user can try to login.
-   *
-   * @return boolean true if user is banned, false otherwise
+   * Este metodo comprueba si el usuario puede tratar de iniciar sesión evaluando la existencia de restricciones,
+   * retorna verdadero si existe una restricción activa, falso en el caso contrario.
+   * @return boolean true|false.
    */
   public static function banCanLogin() {
     if (self::$banFile !== '') {
@@ -272,17 +272,16 @@ class iSesion {
       $gb = $GLOBALS['IPBANS'];
       if (isset($gb['BANS'][$ip])) {
         // User is banned. Check if the ban has expired:
-        if ($gb['BANS'][$ip] <= time()) {
-          // Ban expired, user can try to login again.
+        if ($gb['BANS'][$ip] <= time()) {// La restricción expiró, el usuario puede intentar iniciar sesión de nuevo.
           unset($gb['FAILURES'][$ip]);
           unset($gb['BANS'][$ip]);
-          file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
-          return true; // Ban has expired, user can login.
+          file_put_contents(self::$banFile,"<?php\n\$GLOBALS['IPBANS']=" .var_export($gb, true).";\n?>");
+          return(true);//Restricción de acceso expirada, el usuario puede iniciar sesión.
         }
-        return false; // User is banned.
+        return(false);//Restricción de acceso activa.
       }
     }
-    return true; // User is not banned.
+    return(true); //Sin acceso restringido.
   }
 
 }
