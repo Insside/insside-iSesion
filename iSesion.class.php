@@ -51,21 +51,12 @@ $root = (!isset($root)) ? "../" : $root;
 
 class iSesion {
 
-  // Personnalize PHP session name
-  public static $sessionName = 'insside';
-  // If the user does not access any page within this time,
-  // his/her session is considered expired (3600 sec. = 1 hour)
-  public static $inactivityTimeout = 3600;
-  // If you get disconnected often or if your IP address changes often.
-  // Let you disable session cookie hijacking protection
-  public static $disableSessionProtection = false;
-  // Ban IP after this many failures.
-  public static $banAfter = 4;
-  // Ban duration for IP address after login failures (in seconds).
-  // (1800 sec. = 30 minutes)
-  public static $banDuration = 1800;
-  // File storage for failures and bans. If empty, no ban management.
-  public static $banFile = '';
+  public static $nombre = 'insside';// Nombre asignado a la sesión.
+  public static $inactividad= 3600;// Tiempo de inactividad para considerar una sesion expirada. (3600 =1 hora).
+  public static $proteccion = false;// Permite regular la funcón de secuestro de las cookies de sesión en caso de que sus cambio de ip sea demaciado frecuentes.
+  public static $intentos = 6;// Numero maximo de intentos antes de ser restringido.
+  public static $duracion = 1800;// Duracion de la restricción de intento de acceso.  (1800 segundos. = 30 minutos)
+  public static $archivo = '';//Archivo que almasena el registro de intentos de acceso si está vacío, no hay gestión de prohibiciones.
 
   /**
    * Initialize session
@@ -79,8 +70,8 @@ class iSesion {
     if (!session_id()) {
       // Prevent php to use sessionID in URL if cookies are disabled.
       ini_set('session.use_trans_sid', false);
-      if (!empty(self::$sessionName)) {
-        session_name(self::$sessionName);
+      if (!empty(self::$nombre)) {
+        session_name(self::$nombre);
       }
       session_start();
     }
@@ -142,19 +133,18 @@ class iSesion {
     self::banInit();
     if (self::Acceso()) {
       if ($login === $loginTest && $password === $passwordTest) {
-        self::banLoginOk();
+        self::Concedido();
         // Generate unique random number to sign forms (HMAC)
         $_SESSION['uid'] = sha1(uniqid('', true) . '_' . mt_rand());
         $_SESSION['ip'] = self::_allIPs();
         $_SESSION['username'] = $login;
-        // Set session expiration.
-        $_SESSION['expires_on'] = time() + self::$inactivityTimeout;
+        $_SESSION['expires_on'] = time() + self::$inactividad;
         foreach ($pValues as $key => $value) {
           $_SESSION[$key] = $value;
         }
         return true;
       }
-      self::banLoginFailed();
+      self::Denegado();
     }
     return false;
   }
@@ -172,12 +162,12 @@ class iSesion {
    * @return true|false True if user is logged in, false otherwise
    */
   public static function isLogged() {
-    if (!isset($_SESSION['uid']) || (self::$disableSessionProtection === false && $_SESSION['ip'] !== self::_allIPs()) || time() >= $_SESSION['expires_on']) {
+    if (!isset($_SESSION['uid']) || (self::$proteccion === false && $_SESSION['ip'] !== self::_allIPs()) || time() >= $_SESSION['expires_on']) {
       self::logout();
       return false;
     }
     // User accessed a page : Update his/her session expiration date.
-    $_SESSION['expires_on'] = time() + self::$inactivityTimeout;
+    $_SESSION['expires_on'] = time() + self::$inactividad;
     if (!empty($_SESSION['longlastingsession'])) {
       $_SESSION['expires_on'] += $_SESSION['longlastingsession'];
     }
@@ -203,49 +193,47 @@ class iSesion {
 
   /**
    * Tells if a token is ok. Using this function will destroy the token.
-   *
    * @param string $token Token to test
-   *
    * @return true|false   True if token is correct, false otherwise
    */
   public static function isToken($token) {
     if (isset($_SESSION['tokens'][$token])) {
       unset($_SESSION['tokens'][$token]); // Token is used: destroy it.
-      return true; // Token is ok.
+      return(true); // Token is ok.
     }
-    return false; // Wrong token, or already used.
+    return(false); // Wrong token, or already used.
   }
 
   /**
-   * Signal a failed login. Will ban the IP if too many failures:
+   * Señal de un inicio de sesión fallido. Prohibirá la IP si se producen demasiados fracasos.
    */
-  public static function banLoginFailed() {
-    if (self::$banFile !== '') {
+  public static function Denegado() {
+    if (self::$archivo !== '') {
       $ip = $_SERVER["REMOTE_ADDR"];
       $gb = $GLOBALS['IPBANS'];
       if (!isset($gb['FAILURES'][$ip])) {
         $gb['FAILURES'][$ip] = 0;
       }
       $gb['FAILURES'][$ip] ++;
-      if ($gb['FAILURES'][$ip] > (self::$banAfter - 1)) {
-        $gb['BANS'][$ip] = time() + self::$banDuration;
+      if ($gb['FAILURES'][$ip] > (self::$intentos - 1)) {
+        $gb['BANS'][$ip] = time() + self::$duracion;
       }
       $GLOBALS['IPBANS'] = $gb;
-      file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
+      file_put_contents(self::$archivo, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
     }
   }
 
   /**
-   * Signals a successful login. Resets failed login counter.
+   * Acceso concedido al sistema en terminos exitosos, reinicia el contador de intentos fallidos.
    */
-  public static function banLoginOk() {
-    if (self::$banFile !== '') {
+  public static function Concedido() {
+    if (self::$archivo !== '') {
       $ip = $_SERVER["REMOTE_ADDR"];
       $gb = $GLOBALS['IPBANS'];
       unset($gb['FAILURES'][$ip]);
       unset($gb['BANS'][$ip]);
       $GLOBALS['IPBANS'] = $gb;
-      file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
+      file_put_contents(self::$archivo, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
     }
   }
 
@@ -253,11 +241,11 @@ class iSesion {
    * Ban init
    */
   public static function banInit() {
-    if (self::$banFile !== '') {
-      if (!is_file(self::$banFile)) {
-        file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export(array('FAILURES' => array(), 'BANS' => array()), true) . ";\n?>");
+    if (self::$archivo !== '') {
+      if (!is_file(self::$archivo)) {
+        file_put_contents(self::$archivo, "<?php\n\$GLOBALS['IPBANS']=" . var_export(array('FAILURES' => array(), 'BANS' => array()), true) . ";\n?>");
       }
-      include self::$banFile;
+      include self::$archivo;
     }
   }
 
@@ -273,14 +261,14 @@ class iSesion {
    * @return boolean true|false.
    */
   public static function Acceso() {
-    if (self::$banFile !== '') {
+    if (self::$archivo !== '') {
       $ip = $_SERVER["REMOTE_ADDR"];
       $gb = $GLOBALS['IPBANS'];
       if (isset($gb['BANS'][$ip])) {
         if ($gb['BANS'][$ip] <= time()) {
           unset($gb['FAILURES'][$ip]);
           unset($gb['BANS'][$ip]);
-          file_put_contents(self::$banFile,"<?php\n\$GLOBALS['IPBANS']=" .var_export($gb, true).";\n?>");
+          file_put_contents(self::$archivo,"<?php\n\$GLOBALS['IPBANS']=" .var_export($gb, true).";\n?>");
           return(true);
         }
         return(false);
@@ -290,4 +278,5 @@ class iSesion {
   }
 
 }
+
 ?>
