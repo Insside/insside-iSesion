@@ -1,11 +1,7 @@
 <?php
+
 $root = (!isset($root)) ? "../" : $root;
-require_once($root."librerias/Cookies.class.php"); 
-require_once($root."librerias/MySQL.class.php");
-require_once($root."librerias/Validaciones.class.php");
-require_once($root."librerias/Fechas.class.php");
-require_once($root."librerias/Historial.class.php"); 
-require_once($root."modulos/usuarios/librerias/Usuarios.class.php");
+
 /**
  * Copyright (c) 2015, Jose Alexis Correa valencia
  * Except as otherwise noted, the content of this library  is licensed under the Creative Commons 
@@ -21,169 +17,274 @@ require_once($root."modulos/usuarios/librerias/Usuarios.class.php");
  * CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
  * @link http://creativecommons.org/licenses/by-nd/3.0/us/legalcode
  * 
- *  php - iCharts
- * Esta clase puede incrustar gráficos en una página web con Google Charts API. Puede generar 
- * HTML y JavaScript para realizar llamadas a la API de Google Charts para mostrar varios tipos de 
- * gráficos estadísticos. Actualmente soporta la incrustación de gráficos de tipo pastel, columna, 
- * área, línea, barras, burbujas, marcadores geográficos y caída libre.
+ * Class insside-iSesion
+ * Clase administrativa para el manejo de sesiones. Si bien existen numerosos artículos escritos 
+ * sobre el tema es minuciosamente difícil encontrar información útil a partir de una sola fuente. 
+ * Por esta razón mas que una discusión sobre las diversas técnicas que se usan para aumentar la 
+ * seguridad de una sesión es que eh decidido articular abiertamente el control del manejo de 
+ * sesiones mediante la implementación de una única clase cuya función será centralizar los 
+ * procedimientos y métodos para el inicio de sesión de la plataforma con el objetivo de prevenir el 
+ * secuestro de sesión y los ataques a fuerza bruta. Siendo consciente de que no existen métodos 
+ * infalibles para la prevención de las múltiples estrategia de ataque, esta clase busca incrementar 
+ * el grado de dificultad y la prudencia en la realización de los diversos procesos asociados se 
+ * aceptan los comentarios, sugerencias, críticas, y ejemplos de código de lectores como usted, 
+ * ya que benefician a la comunidad en su conjunto, para el crecimiento de la plataforma Insside®. 
+ * 
+ * Objetivos: 
+ * - La sencillez, solidez.
+ * Características:
+ * -	Todo se almacena en el servidor no confiamos en los datos del lado del cliente, (ni siquiera la fecha de caducidad de la cookie de sesión).
+ * -	Las direcciones IP se comprueban en cada acceso para evitar el secuestro de las cookies de sesión como habitualmente hacen programas tipo Firesheep.
+ * -	La Sesión expira ante la inactividad y fecha de caducidad es prolongada con la interacción del usuario.
+ * -	Una clave secreta y aleatoria se genera en el lado del servidor para cada sesión esta se puede utilizar para firmar los formularios (HMAC).
+ * -	Utilización de Tokens para prevenir ataques XSRF.
+ * -	Protección contra ataques a fuerza bruta con la gestión de prohibiciones.
+ * Notas:
+ * -  Es aconsejable remplazar el uso de  globals con las variables de la clase iSesión
+ * Utilización:
+ * - @link https://github.com/Insside/insside-iSesion/wiki
+ * 
  * @author Jose Alexis Correa Valencia <insside@facebook.com> 
- * @package iGoogle 
- * @see http://code.google.com/apis/chart/ 
- * @see http://code.google.com/apis/ajax/playground/?type=visualization 
+ * @package iSesion 
+ * @see https://github.com/Insside/insside-iSesion/wiki
  */
 
-class Sesion {
+class iSesion {
+
+  // Personnalize PHP session name
+  public static $sessionName = 'insside';
+  // If the user does not access any page within this time,
+  // his/her session is considered expired (3600 sec. = 1 hour)
+  public static $inactivityTimeout = 3600;
+  // If you get disconnected often or if your IP address changes often.
+  // Let you disable session cookie hijacking protection
+  public static $disableSessionProtection = false;
+  // Ban IP after this many failures.
+  public static $banAfter = 4;
+  // Ban duration for IP address after login failures (in seconds).
+  // (1800 sec. = 30 minutes)
+  public static $banDuration = 1800;
+  // File storage for failures and bans. If empty, no ban management.
+  public static $banFile = '';
+
   /**
- * Esta clase debe ser lo mas independiente en lo posible de otras, ya que por si misma al invocar internamente 
- * a otra clase que requiera de ella misma generara un error por redundancia ciclica como se enuncia a continuación
- * y que en su logica puede resultar algo de dificil comprensión expresado por el php como
- * Maximum function nesting level of '100' reached, aborting!
- */
-  var $cookies;
-  var $consola,$estado;
-  var $validaciones;
-  var $fechas;
-  var $historial;
-  
-  function Sesion() {
-    $this->estado=@session_start();
-    $this->validaciones=new Validaciones();
-    $this->cookies=new Cookies();
-    $this->fechas=new Fechas();
-    $this->historial=new Historial();
-    if($this->estado){
-      if(!isset($_SESSION['sid'])){
-        $this->inicializar();
-      }else{
-        $this->actualizar();
+   * Initialize session
+   */
+  public static function init() {
+    self::setCookie();
+    // Use cookies to store session.
+    ini_set('session.use_cookies', 1);
+    // Force cookies for session  (phpsessionID forbidden in URL)
+    ini_set('session.use_only_cookies', 1);
+    if (!session_id()) {
+      // Prevent php to use sessionID in URL if cookies are disabled.
+      ini_set('session.use_trans_sid', false);
+      if (!empty(self::$sessionName)) {
+        session_name(self::$sessionName);
       }
-    }else{
-
+      session_start();
     }
   }
 
-  function inicializar() {
-    @session_cache_limiter('private_no_expire');
-    @session_cache_expire(2592000);
-    $this->registrar('sid',strtoupper(session_id()));
-    $this->registrar('usuario',"ANONIMO");
-    $this->registrar('rol',"NINGUNO");
-    $this->registrar('fecha',date('Y-m-d',time()));
-    $this->registrar('inicio',date('H:i:s',time()));
-    $this->registrar('finalizacion',date('H:i:s',strtotime("00:00:00")));
-    $this->registrar('actualizada',date('H:i:s',time()));
-    $this->registrar('limite',session_cache_limiter());
-    $this->registrar('expiracion',session_cache_expire());
-    $this->registrar('ip',$_SERVER['REMOTE_ADDR']);
+  /**
+   * Session set cookie
+   *
+   * @param integer $lifetime of cookie
+   */
+  public static function setCookie($lifetime = null) {
+    $cookie = session_get_cookie_params();
+    // Do not change lifetime
+    if ($lifetime === null) {
+      $lifetime = $cookie['lifetime'];
+    }
+    // Force cookie path
+    $path = '';
+    if (dirname($_SERVER['SCRIPT_NAME']) !== '/') {
+      $path = dirname($_SERVER["SCRIPT_NAME"]) . '/';
+    }
+    // Use default domain
+    $domain = $cookie['domain'];
+    if (isset($_SERVER['HTTP_HOST'])) {
+      $domain = $_SERVER['HTTP_HOST'];
+    }
+    // Check if secure
+    $secure = false;
+    if (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == "on") {
+      $secure = true;
+    }
+    session_set_cookie_params($lifetime, $path, $domain, $secure);
   }
 
-  function actualizar() {
-    $_SESSION['actualizada']=date('H:i:s',time());
+  /**
+   * Returns the IP address
+   * (Used to prevent session cookie hijacking.)
+   *
+   * @return string IP addresses
+   */
+  private static function _allIPs() {
+    $ip = $_SERVER["REMOTE_ADDR"];
+    $ip.= isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? '_' . $_SERVER['HTTP_X_FORWARDED_FOR'] : '';
+    $ip.= isset($_SERVER['HTTP_CLIENT_IP']) ? '_' . $_SERVER['HTTP_CLIENT_IP'] : '';
+    return $ip;
   }
 
-  function consultar($dato) {
-    if($dato=="usuario"){
-      $r=@$_SESSION['usuario'];
-      if((empty($r)||$r=="ANONIMO")&&(isset($_REQUEST['usuario']))){
-        $r=@$_REQUEST['usuario'];
+  /**
+   * Check that user/password is correct and then init some SESSION variables.
+   *
+   * @param string $login Login reference
+   * @param string $password Password reference
+   * @param string $loginTest Login to compare with login reference
+   * @param string $passwordTest Password to compare with password reference
+   * @param array  $pValues Array of variables to store in SESSION
+   * @return true|false True if login and password are correct, false otherwise
+   */
+  public static function login($login, $password, $loginTest, $passwordTest, $pValues = array()) {
+    self::banInit();
+    if (self::banCanLogin()) {
+      if ($login === $loginTest && $password === $passwordTest) {
+        self::banLoginOk();
+        // Generate unique random number to sign forms (HMAC)
+        $_SESSION['uid'] = sha1(uniqid('', true) . '_' . mt_rand());
+        $_SESSION['ip'] = self::_allIPs();
+        $_SESSION['username'] = $login;
+        // Set session expiration.
+        $_SESSION['expires_on'] = time() + self::$inactivityTimeout;
+        foreach ($pValues as $key => $value) {
+          $_SESSION[$key] = $value;
+        }
+        return true;
       }
-    }else{
-      $r=@$_SESSION[$dato]; 
-    } return($r);
-  }
-  
-  /**
-   * Registra datos en la sesión y las cookies.
-   * @param type $dato
-   * @param type $valor
-   */
-  function registrar($dato,$valor) {
-    @$_SESSION[$dato]=$valor;
-    @$_COOKIE[$dato]=$valor;
-  }
-  /**
-   * 
-   * @param type $dato
-   * @param type $valor
-   */
-  function descartar($dato) {
-    unset($_SESSION[$dato]);
-    $this->cookies->Delete($dato);
-  }
-  
-  
-  /**
-   * 
-   */
-  function finalizar() { 
-    $usuario=$this->usuario();
-    $this->historial-> set_Salir($usuario['usuario'],"000","EXITO",$sql="");
-    $this->cookies->Wipe();
-    session_destroy();
-    $this->registrar('usuario',"ANONIMO");
-    
+      self::banLoginFailed();
+    }
+    return false;
   }
 
-  /**    Carga todos los permisos asociados a un rol, al conjunto de permisos    estipulados para un rol se le denomina politica (existe una tabla para este proposito) .   * */
-  function politicas($rol) {
-    $db=new MySQL();
-    $sql="SELECT * FROM `aplicacion_politicas` WHERE `rol` = '".$rol."' ORDER BY `permiso`;";
-    $consulta=$db->sql_query($sql);
-    $cantidad_politicas=$db->sql_numrows($consulta);
-    if(intval($cantidad_politicas)>0){
-      while($fila=$db->sql_fetchrow($consulta)) {
-        $this->registrar($fila['permiso'],true);
+  /**
+   * Unset SESSION variable to force logout
+   */
+  public static function logout() {
+    unset($_SESSION['uid'], $_SESSION['ip'], $_SESSION['expires_on']);
+  }
+
+  /**
+   * Make sure user is logged in.
+   *
+   * @return true|false True if user is logged in, false otherwise
+   */
+  public static function isLogged() {
+    if (!isset($_SESSION['uid']) || (self::$disableSessionProtection === false && $_SESSION['ip'] !== self::_allIPs()) || time() >= $_SESSION['expires_on']) {
+      self::logout();
+      return false;
+    }
+    // User accessed a page : Update his/her session expiration date.
+    $_SESSION['expires_on'] = time() + self::$inactivityTimeout;
+    if (!empty($_SESSION['longlastingsession'])) {
+      $_SESSION['expires_on'] += $_SESSION['longlastingsession'];
+    }
+    return true;
+  }
+
+  /**
+   * Create a token, store it in SESSION and return it
+   *
+   * @param string $salt to prevent birthday attack
+   *
+   * @return string Token created
+   */
+  public static function getToken($salt = '') {
+    if (!isset($_SESSION['tokens'])) {
+      $_SESSION['tokens'] = array();
+    }
+    // We generate a random string and store it on the server side.
+    $rnd = sha1(uniqid('', true) . '_' . mt_rand() . $salt);
+    $_SESSION['tokens'][$rnd] = 1;
+    return $rnd;
+  }
+
+  /**
+   * Tells if a token is ok. Using this function will destroy the token.
+   *
+   * @param string $token Token to test
+   *
+   * @return true|false   True if token is correct, false otherwise
+   */
+  public static function isToken($token) {
+    if (isset($_SESSION['tokens'][$token])) {
+      unset($_SESSION['tokens'][$token]); // Token is used: destroy it.
+      return true; // Token is ok.
+    }
+    return false; // Wrong token, or already used.
+  }
+
+  /**
+   * Signal a failed login. Will ban the IP if too many failures:
+   */
+  public static function banLoginFailed() {
+    if (self::$banFile !== '') {
+      $ip = $_SERVER["REMOTE_ADDR"];
+      $gb = $GLOBALS['IPBANS'];
+      if (!isset($gb['FAILURES'][$ip])) {
+        $gb['FAILURES'][$ip] = 0;
       }
-    } $db->sql_close();
-  }
-
-  /** 	
-   * Autenticar:El proceso de autenticacion es el proceso mediante el cual un usuario,   		
-   * cuya identidad ha sido verificada, obitene todos los permisos asociados en   
-   * las politicas de sus roles, para comodidad del sistema esposible asignar varios roles   
-   * a un mismo usuario, ya que si un permiso especifico esta duplicado esto resultara   
-   * ineherente en el proceso. 
-   * 
-   * @param type $alias
-   */
-  function autenticar($alias) {
-    $db=new MySQL();
-    $consulta=$db->sql_query("SELECT * FROM `usuarios_usuarios` WHERE(`alias` = '".$alias."');");
-    $fila=$db->sql_fetchrow($consulta);
-    $this->registrar('usuario',$fila['usuario']);
-    $this->registrar('alias',$fila['alias']);
-    $consulta=$db->sql_query("SELECT * FROM `usuarios_jerarquias` WHERE(`usuario` = '".$fila['usuario']."');");
-    while($fila=$db->sql_fetchrow($consulta)) {
-      $this->politicas($fila['rol']);
-    } $db->sql_close();
-  }
-
-  /** 	Analizar:visualiza completamente el contenido del objeto sesion exponiendo el contenido   * 		del vector.   * */
-  function analizar() {
-    echo("<pre>");
-    print_r($_SESSION);
-    echo("</pre>" );
+      $gb['FAILURES'][$ip] ++;
+      if ($gb['FAILURES'][$ip] > (self::$banAfter - 1)) {
+        $gb['BANS'][$ip] = time() + self::$banDuration;
+      }
+      $GLOBALS['IPBANS'] = $gb;
+      file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
+    }
   }
 
   /**
-   * Esta funcion consulta los datos del usuario activo, si la interfaz esta desplegada y por algun motivo
-   * el usuario no esta activo, toma la variable UID presente en la transacción para estabecer el usuario actual
-   * activo y responsable de la transacción. La respuesta es un vector que contiene los datos del usuario
-   * @return type Array
+   * Signals a successful login. Resets failed login counter.
    */
-  function usuario() {
-    $su=@$_SESSION['usuario'];
-    $uid=@$_REQUEST['uid'];
-    $usuario=($su!="ANONIMO")?$su:$uid;
-    $db = new MySQL();
-    $sql="SELECT * FROM `usuarios_usuarios` WHERE(`usuario` = '" . $usuario ."');";
-    $consulta = $db->sql_query($sql);
-    $fila = $db->sql_fetchrow($consulta);
-    $db->sql_close();
-    return($fila);
+  public static function banLoginOk() {
+    if (self::$banFile !== '') {
+      $ip = $_SERVER["REMOTE_ADDR"];
+      $gb = $GLOBALS['IPBANS'];
+      unset($gb['FAILURES'][$ip]);
+      unset($gb['BANS'][$ip]);
+      $GLOBALS['IPBANS'] = $gb;
+      file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
+    }
+  }
+
+  /**
+   * Ban init
+   */
+  public static function banInit() {
+    if (self::$banFile !== '') {
+      if (!is_file(self::$banFile)) {
+        file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export(array('FAILURES' => array(), 'BANS' => array()), true) . ";\n?>");
+      }
+      include self::$banFile;
+    }
+  }
+
+  /**
+   * Checks if the user CAN login. If 'true', the user can try to login.
+   *
+   * @return boolean true if user is banned, false otherwise
+   */
+  public static function banCanLogin() {
+    if (self::$banFile !== '') {
+      $ip = $_SERVER["REMOTE_ADDR"];
+      $gb = $GLOBALS['IPBANS'];
+      if (isset($gb['BANS'][$ip])) {
+        // User is banned. Check if the ban has expired:
+        if ($gb['BANS'][$ip] <= time()) {
+          // Ban expired, user can try to login again.
+          unset($gb['FAILURES'][$ip]);
+          unset($gb['BANS'][$ip]);
+          file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=" . var_export($gb, true) . ";\n?>");
+          return true; // Ban has expired, user can login.
+        }
+        return false; // User is banned.
+      }
+    }
+    return true; // User is not banned.
   }
 
 }
 
-$sesion=new Sesion();
 ?>
