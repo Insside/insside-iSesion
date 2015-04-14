@@ -1,6 +1,4 @@
 # Clase iSesion - Insside Framewok®
-
-# Bienvenido al insside-iSesion wiki!
 Clase administrativa para el manejo de sesiones. Si bien existen numerosos artículos escritos 
 sobre el tema es minuciosamente difícil encontrar información útil a partir de una sola fuente. 
 Por esta razón mas que una discusión sobre las diversas técnicas que se usan para aumentar la 
@@ -13,9 +11,9 @@ el grado de dificultad y la prudencia en la realización de los diversos proceso
 aceptan los comentarios, sugerencias, críticas, y ejemplos de código de lectores como usted, 
 ya que benefician a la comunidad en su conjunto, para el crecimiento de la plataforma Insside®. 
 
-### Objetivos: 
+## Objetivos: 
 La sencillez, solidez.
-### Características:
+## Características:
 * Todo se almacena en el servidor no confiamos en los datos del lado del cliente, (ni siquiera la fecha de caducidad de la cookie de sesión).
 * Las direcciones IP se comprueban en cada acceso para evitar el secuestro de las cookies de sesión como habitualmente hacen programas tipo Firesheep.
 * La Sesión expira ante la inactividad y fecha de caducidad es prolongada con la interacción del usuario.
@@ -23,8 +21,20 @@ La sencillez, solidez.
 * Utilización de Tokens para prevenir ataques XSRF.
 * Protección contra ataques a fuerza bruta con la gestión de prohibiciones.
 
-### Notas:
+## Notas:
 * Es aconsejable remplazar el uso de  globals con las variables de la clase iSesión
+
+
+## Requerimientos
+* PHP 4 or PHP 5
+
+## Contactenme en:
+* **Perfil**: http://about.me/jalexiscv
+* **Correo Electrónico**: jalexiscv@gmail.com
+* **Whatsapp**: +573173997946
+
+## Donaciones:
+* **Paypal**: jalexiscv@gmail.com
 
 Copyright (c) 2015, Jose Alexis Correa valencia
 Except as otherwise noted, the content of this library  is licensed under the Creative Commons 
