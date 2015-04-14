@@ -140,7 +140,7 @@ class iSesion {
    */
   public static function login($login, $password, $loginTest, $passwordTest, $pValues = array()) {
     self::banInit();
-    if (self::banCanLogin()) {
+    if (self::Acceso()) {
       if ($login === $loginTest && $password === $passwordTest) {
         self::banLoginOk();
         // Generate unique random number to sign forms (HMAC)
@@ -262,28 +262,32 @@ class iSesion {
   }
 
   /**
-   * Este metodo comprueba si el usuario puede tratar de iniciar sesión evaluando la existencia de restricciones,
-   * retorna verdadero si existe una restricción activa, falso en el caso contrario.
+   * Este metodo comprueba si el usuario puede tratar de iniciar sesión evaluando la existencia de 
+   * restricciones, en primera instancia evalua si el archivo que contiene el listado de ips a las cuales 
+   * se les restringe el acceso se encuentra activo, de no encontrarse definido este archivo por defecto 
+   * no existiran restricciones en los intentos de acceso. Si el archivo se ha definido se verifica si la IP
+   * hace parte del listado, de hacer parte del listado se evalua si la restricción de acceso a expirado,
+   * en tal caso si la restricción expiro se establece que podra intentar iniciar sesión nuevante, caso 
+   * contrario la restriccion esta activa, el resultado de la ejecución del metodo determina si se concede
+   * la posibilidad de intentar acceder o no al sistem segun el valor retornado.
    * @return boolean true|false.
    */
-  public static function banCanLogin() {
+  public static function Acceso() {
     if (self::$banFile !== '') {
       $ip = $_SERVER["REMOTE_ADDR"];
       $gb = $GLOBALS['IPBANS'];
       if (isset($gb['BANS'][$ip])) {
-        // User is banned. Check if the ban has expired:
-        if ($gb['BANS'][$ip] <= time()) {// La restricción expiró, el usuario puede intentar iniciar sesión de nuevo.
+        if ($gb['BANS'][$ip] <= time()) {
           unset($gb['FAILURES'][$ip]);
           unset($gb['BANS'][$ip]);
           file_put_contents(self::$banFile,"<?php\n\$GLOBALS['IPBANS']=" .var_export($gb, true).";\n?>");
-          return(true);//Restricción de acceso expirada, el usuario puede iniciar sesión.
+          return(true);
         }
-        return(false);//Restricción de acceso activa.
+        return(false);
       }
     }
-    return(true); //Sin acceso restringido.
+    return(true);
   }
 
 }
-
 ?>
