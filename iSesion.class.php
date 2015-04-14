@@ -7,12 +7,38 @@ require_once($root."librerias/Fechas.class.php");
 require_once($root."librerias/Historial.class.php"); 
 require_once($root."modulos/usuarios/librerias/Usuarios.class.php");
 /**
+ * Copyright (c) 2015, Jose Alexis Correa valencia
+ * Except as otherwise noted, the content of this library  is licensed under the Creative Commons 
+ * Attribution 3.0 License, and code samples are licensed under the Apache 2.0 License.
+ * @link http://creativecommons.org/licenses/by/3.0/
+ *
+ * THE WORK (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF THIS CREATIVE COMMONS 
+ * PUBLIC LICENSE ("CCPL" OR "LICENSE"). THE WORK IS PROTECTED BY COPYRIGHT AND/OR OTHER 
+ * APPLICABLE LAW. ANY USE OF THE WORK OTHER THAN AS AUTHORIZED UNDER THIS LICENSE OR 
+ * COPYRIGHT LAW IS PROHIBITED. BY EXERCISING ANY RIGHTS TO THE WORK PROVIDED HERE, 
+ * YOU ACCEPT AND AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE. TO THE EXTENT THIS 
+ * LICENSE MAY BE CONSIDERED TO BE A CONTRACT, THE LICENSOR GRANTS YOU THE RIGHTS 
+ * CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+ * @link http://creativecommons.org/licenses/by-nd/3.0/us/legalcode
+ * 
+ *  php - iCharts
+ * Esta clase puede incrustar gráficos en una página web con Google Charts API. Puede generar 
+ * HTML y JavaScript para realizar llamadas a la API de Google Charts para mostrar varios tipos de 
+ * gráficos estadísticos. Actualmente soporta la incrustación de gráficos de tipo pastel, columna, 
+ * área, línea, barras, burbujas, marcadores geográficos y caída libre.
+ * @author Jose Alexis Correa Valencia <insside@facebook.com> 
+ * @package iGoogle 
+ * @see http://code.google.com/apis/chart/ 
+ * @see http://code.google.com/apis/ajax/playground/?type=visualization 
+ */
+
+class Sesion {
+  /**
  * Esta clase debe ser lo mas independiente en lo posible de otras, ya que por si misma al invocar internamente 
  * a otra clase que requiera de ella misma generara un error por redundancia ciclica como se enuncia a continuación
  * y que en su logica puede resultar algo de dificil comprensión expresado por el php como
  * Maximum function nesting level of '100' reached, aborting!
  */
-class Sesion {
   var $cookies;
   var $consola,$estado;
   var $validaciones;
