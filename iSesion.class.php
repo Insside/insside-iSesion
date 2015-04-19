@@ -276,6 +276,23 @@ class iSesion {
     }
     return(true);
   }
+  /**
+   * Este metodo permite consultar en instancia un valor alojado como dato en la sesión, es interesante utilizarlo
+   * a manera de abstaracción ya que su existencia y uso permiten implementar controles adicionales.
+   * @return String
+   */
+  function consultar($dato){
+    return($_SESSION[$dato]);
+  }
+  
+    /**
+   * Este metodo permite asignar en instancia un valor alojado como dato en la sesión, es interesante utilizarlo
+   * a manera de abstaracción ya que su existencia y uso permiten implementar controles adicionales.
+   * boolean true|false.
+   */
+  function registrar($dato,$valor){
+    return($_SESSION[$dato]=$valor);
+  }
 
 }
 
